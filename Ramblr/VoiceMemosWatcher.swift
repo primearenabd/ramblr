@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import UserNotifications
+import RamblrKit
 
 class VoiceMemosWatcher: ObservableObject {
 
@@ -244,7 +245,7 @@ class VoiceMemosWatcher: ObservableObject {
                     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                     logInfo("VoiceMemosWatcher: Transcription complete (\(trimmed.count) chars)")
                     self.transcriptionManager?.addToHistory(trimmed)
-                    self.transcriptionManager?.saveTranscriptionToFile(trimmed)
+                    self.transcriptionManager?.saveTranscriptionToFile(trimmed, source: .voiceMemo)
                     self.showTranscriptionNotification(trimmed)
                 } else {
                     logError("VoiceMemosWatcher: Transcription failed for \(fileURL.lastPathComponent)")

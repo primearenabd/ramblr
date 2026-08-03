@@ -496,7 +496,10 @@ class TranscriptionManager: ObservableObject {
     func handleTranscriptionOutput(_ text: String, clipboardOnly: Bool = false) {
         let isAutoPasteEnabled = (UserDefaults.standard.object(forKey: "AutoPasteEnabled") as? Bool) ?? false
         addToHistory(text)
-        saveTranscriptionToFile(text)
+        // This path is only reached from the Mac hotkey recording flow
+        // (RecordingCoordinator); Voice Memos imports call
+        // saveTranscriptionToFile directly with .voiceMemo.
+        saveTranscriptionToFile(text, source: .hotkey)
         if isAutoPasteEnabled && !clipboardOnly {
             // If auto-paste is on but we don't have permission, show prompt and fall back to copy
             if !AXIsProcessTrusted() {
@@ -661,7 +664,7 @@ class TranscriptionManager: ObservableObject {
         logInfo("TranscriptionManager: Save subdirectory format set to \(format)")
     }
 
-    func saveTranscriptionToFile(_ text: String) {
+    func saveTranscriptionToFile(_ text: String, source: TranscriptionSource) {
         guard saveFolderEnabled,
               let basePath = saveFolderPath,
               !basePath.isEmpty else { return }
@@ -685,7 +688,14 @@ class TranscriptionManager: ObservableObject {
             .replacingOccurrences(of: "{minute}", with: minute)
 
         let baseURL = URL(fileURLWithPath: basePath, isDirectory: true)
-        let directoryURL = subdirectory.isEmpty ? baseURL : baseURL.appendingPathComponent(subdirectory, isDirectory: true)
+        let dateDirectoryURL = subdirectory.isEmpty ? baseURL : baseURL.appendingPathComponent(subdirectory, isDirectory: true)
+        // File into a source-specific subdirectory (e.g. ".../08/03/voicememo/")
+        // so a downstream consumer can tell Voice Memos captures — which
+        // automation treats as actionable — apart from hotkey dictations the
+        // user pastes manually. Transcripts saved before this existed have no
+        // such subdirectory, so their absence reads as legacy/unknown rather
+        // than as either source.
+        let directoryURL = dateDirectoryURL.appendingPathComponent(source.subdirectoryName, isDirectory: true)
 
         do {
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)

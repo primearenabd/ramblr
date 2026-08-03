@@ -59,6 +59,14 @@ final class RamblrKitTests: XCTestCase {
         XCTAssertTrue(string.contains("--BOUND--\r\n"))
     }
 
+    func testTranscriptionSourceSubdirectoryNames() {
+        // These raw values are an on-disk contract: downstream automation
+        // filters for Voice Memos captures by checking for a "voicememo"
+        // path component, so these strings must not change casually.
+        XCTAssertEqual(TranscriptionSource.voiceMemo.subdirectoryName, "voicememo")
+        XCTAssertEqual(TranscriptionSource.hotkey.subdirectoryName, "hotkey")
+    }
+
     func testErrorRetriability() {
         XCTAssertTrue(TranscriptionError.timeout.isRetriable)
         XCTAssertTrue(TranscriptionError.apiError(429, "rate").isRetriable)
