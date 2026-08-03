@@ -28,6 +28,20 @@ final class RamblrKitTests: XCTestCase {
         XCTAssertEqual(TranscriptionService.mimeType(for: "xyz"), "application/octet-stream")
     }
 
+    func testUploadFilenameKeepsSupportedExtensions() {
+        let m4a = URL(fileURLWithPath: "/tmp/20260803 072717-A88B4EC4.m4a")
+        XCTAssertEqual(TranscriptionService.uploadFilename(for: m4a), "20260803 072717-A88B4EC4.m4a")
+        let wav = URL(fileURLWithPath: "/tmp/chunk-1.WAV")
+        XCTAssertEqual(TranscriptionService.uploadFilename(for: wav), "chunk-1.WAV")
+    }
+
+    func testUploadFilenameRemapsUnsupportedExtensions() {
+        // Voice Memos .qta files are ISO/QuickTime audio the API can decode,
+        // but the extension fails server-side filename validation.
+        let qta = URL(fileURLWithPath: "/tmp/20260803 072717-A88B4EC4.qta")
+        XCTAssertEqual(TranscriptionService.uploadFilename(for: qta), "20260803 072717-A88B4EC4.m4a")
+    }
+
     func testMultipartBodyContainsFields() {
         let body = TranscriptionService.multipartBody(
             boundary: "BOUND",

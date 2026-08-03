@@ -78,8 +78,8 @@ public struct TranscriptionService: Sendable {
             throw TranscriptionError.fileError(error.localizedDescription)
         }
 
-        let filename = audioURL.lastPathComponent
-        let mimeType = Self.mimeType(for: audioURL.pathExtension)
+        let filename = Self.uploadFilename(for: audioURL)
+        let mimeType = Self.mimeType(for: (filename as NSString).pathExtension)
         // Groq requires whisper-large-v3 regardless of stored model name.
         let modelForAPI = model.provider == .groq ? "whisper-large-v3" : model.modelName
 
@@ -172,6 +172,28 @@ public struct TranscriptionService: Sendable {
 
         append("--\(boundary)--\r\n")
         return data
+    }
+
+    /// Extensions the OpenAI/Groq transcription endpoints accept. Both providers
+    /// validate the multipart *filename extension* server-side and reject
+    /// anything else with a 400 — even if the audio content itself is decodable.
+    static let apiSupportedExtensions: Set<String> = [
+        "flac", "mp3", "mp4", "mpeg", "mpga", "m4a", "ogg", "opus", "wav", "webm"
+    ]
+
+    /// The filename to present in the multipart upload.
+    ///
+    /// Voice Memos `.qta` files are ordinary ISO/QuickTime containers that the
+    /// providers' decoders handle fine, but the `.qta` extension fails their
+    /// filename validation (Groq: "file must be one of the following types: …").
+    /// For any extension outside the supported list, present the file as
+    /// `.m4a` so validation passes and content sniffing does the rest.
+    static func uploadFilename(for audioURL: URL) -> String {
+        let ext = audioURL.pathExtension.lowercased()
+        if apiSupportedExtensions.contains(ext) {
+            return audioURL.lastPathComponent
+        }
+        return audioURL.deletingPathExtension().lastPathComponent + ".m4a"
     }
 
     static func mimeType(for pathExtension: String) -> String {
