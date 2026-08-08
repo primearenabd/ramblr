@@ -6,6 +6,21 @@
         <description>Updates for Ramblr</description>
         <language>en</language>
         <item>
+            <title>1.10.1</title>
+            <pubDate>Sat, 08 Aug 2026 14:10:09 -0700</pubDate>
+            <link>https://nfarina.github.io/ramblr</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/nfarina/ramblr/releases/tag/v1.10.1</sparkle:fullReleaseNotesLink>
+            <sparkle:version>22</sparkle:version>
+            <sparkle:shortVersionString>1.10.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## What's new
+
+- Auto-imported Voice Memos now preserve their original recording date and time. Saved transcripts use that timestamp in their date folder and filename, and their filesystem creation and modification dates match the memo as well.
+]]></description>
+            <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.10.1/Ramblr-1.10.1-macos.zip" length="3006832" type="application/octet-stream" sparkle:edSignature="vFbZB0bB79SFES65o71rhAYtCcmAqqFkcmBdlMssqvQLpC/LbyWliTdasB6EwmFuwLJhALGNG+G9RenIxZ1QBw=="/>
+        </item>
+        <item>
             <title>1.10.0</title>
             <pubDate>Mon, 03 Aug 2026 13:19:35 -0700</pubDate>
             <link>https://nfarina.github.io/ramblr</link>
@@ -41,22 +56,6 @@
 - Failed and interrupted recordings are preserved for recovery, while disposable upload chunks are cleaned up safely.
 ]]></description>
             <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.9.0/Ramblr-1.9.0-macos.zip" length="3000626" type="application/octet-stream" sparkle:edSignature="YUkPIwDx/GIcUOI3S51awFCcnD00fAf+FVUZP3bvhrZB8uTMbc/UmZ0iv/n6y+wzq3Z/XUcuFnfhUx16L1SpAA=="/>
-        </item>
-        <item>
-            <title>1.8.1</title>
-            <pubDate>Thu, 16 Jul 2026 15:14:38 -0700</pubDate>
-            <link>https://nfarina.github.io/ramblr</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/nfarina/ramblr/releases/tag/v1.8.1</sparkle:fullReleaseNotesLink>
-            <sparkle:version>19</sparkle:version>
-            <sparkle:shortVersionString>1.8.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[## What's new
-
-- Removed transcription vocabulary prompts because they could inject configured terms into dictation even when those words were not spoken.
-- Transcriptions now use the original unbiased request behavior again.
-]]></description>
-            <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.8.1/Ramblr-1.8.1-macos.zip" length="2929518" type="application/octet-stream" sparkle:edSignature="LCfW0mymmiRsTONecedpyfSqtYIvuRX+Szcr5MPNQqKEv6Ja8OzYSUHwj72haTW1Yh3PQCXMl9fjMlf5r1ddCg=="/>
         </item>
     </channel>
 </rss>
