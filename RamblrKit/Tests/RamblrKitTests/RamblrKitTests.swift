@@ -67,6 +67,33 @@ final class RamblrKitTests: XCTestCase {
         XCTAssertEqual(TranscriptionSource.hotkey.subdirectoryName, "hotkey")
     }
 
+    func testVoiceMemoTimestampParsesFilenameRecordingDate() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let date = VoiceMemoTimestamp.recordingDate(
+            fromFilename: "20260803 072717-A88B4EC4.qta",
+            calendar: calendar
+        )
+
+        XCTAssertEqual(
+            date,
+            calendar.date(from: DateComponents(
+                year: 2026,
+                month: 8,
+                day: 3,
+                hour: 7,
+                minute: 27,
+                second: 17
+            ))
+        )
+    }
+
+    func testVoiceMemoTimestampRejectsUnexpectedFilename() {
+        XCTAssertNil(VoiceMemoTimestamp.recordingDate(fromFilename: "A88B4EC4.qta"))
+        XCTAssertNil(VoiceMemoTimestamp.recordingDate(fromFilename: "20261340 256199-invalid.m4a"))
+    }
+
     func testErrorRetriability() {
         XCTAssertTrue(TranscriptionError.timeout.isRetriable)
         XCTAssertTrue(TranscriptionError.apiError(429, "rate").isRetriable)

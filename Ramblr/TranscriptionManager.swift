@@ -664,14 +664,20 @@ class TranscriptionManager: ObservableObject {
         logInfo("TranscriptionManager: Save subdirectory format set to \(format)")
     }
 
-    func saveTranscriptionToFile(_ text: String, source: TranscriptionSource) {
+    func saveTranscriptionToFile(
+        _ text: String,
+        source: TranscriptionSource,
+        recordedAt: Date = Date()
+    ) {
         guard saveFolderEnabled,
               let basePath = saveFolderPath,
               !basePath.isEmpty else { return }
 
-        let now = Date()
         let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: now)
+        let components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: recordedAt
+        )
 
         let year = String(format: "%04d", components.year ?? 0)
         let month = String(format: "%02d", components.month ?? 0)
@@ -716,6 +722,14 @@ class TranscriptionManager: ObservableObject {
 
         do {
             try text.write(to: fileURL, atomically: true, encoding: .utf8)
+            do {
+                try FileManager.default.setAttributes(
+                    [.creationDate: recordedAt, .modificationDate: recordedAt],
+                    ofItemAtPath: fileURL.path
+                )
+            } catch {
+                logWarning("TranscriptionManager: Saved transcription but failed to preserve its timestamp: \(error)")
+            }
             logInfo("TranscriptionManager: Saved transcription to \(fileURL.path)")
         } catch {
             logError("TranscriptionManager: Failed to save transcription file: \(error)")

@@ -234,6 +234,7 @@ class VoiceMemosWatcher: ObservableObject {
 
         isProcessing = true
         logInfo("VoiceMemosWatcher: Starting transcription for: \(fileURL.lastPathComponent)")
+        let recordedAt = recordingDate(for: fileURL)
 
         tm.transcribeWithRetry(audioURL: fileURL) { [weak self] text in
             guard let self = self else { return }
@@ -245,7 +246,11 @@ class VoiceMemosWatcher: ObservableObject {
                     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                     logInfo("VoiceMemosWatcher: Transcription complete (\(trimmed.count) chars)")
                     self.transcriptionManager?.addToHistory(trimmed)
-                    self.transcriptionManager?.saveTranscriptionToFile(trimmed, source: .voiceMemo)
+                    self.transcriptionManager?.saveTranscriptionToFile(
+                        trimmed,
+                        source: .voiceMemo,
+                        recordedAt: recordedAt
+                    )
                     self.showTranscriptionNotification(trimmed)
                 } else {
                     logError("VoiceMemosWatcher: Transcription failed for \(fileURL.lastPathComponent)")
@@ -254,6 +259,26 @@ class VoiceMemosWatcher: ObservableObject {
                 self.processNextInQueue()
             }
         }
+    }
+
+    /// Voice Memos encode the original recording time in the filename. Prefer
+    /// that value because iCloud sync can replace the filesystem timestamps
+    /// with the download date. Metadata remains a fallback for files whose
+    /// names do not follow Apple's usual format.
+    private func recordingDate(for url: URL) -> Date {
+        if let date = VoiceMemoTimestamp.recordingDate(fromFilename: url.lastPathComponent) {
+            return date
+        }
+
+        let keys: Set<URLResourceKey> = [.creationDateKey, .contentModificationDateKey]
+        if let values = try? url.resourceValues(forKeys: keys),
+           let date = values.creationDate ?? values.contentModificationDate {
+            logWarning("VoiceMemosWatcher: Falling back to file metadata timestamp for \(url.lastPathComponent)")
+            return date
+        }
+
+        logWarning("VoiceMemosWatcher: No recording timestamp found for \(url.lastPathComponent); using current time")
+        return Date()
     }
 
     // MARK: - Processed Files Persistence
