@@ -274,22 +274,34 @@ struct MenuBarView: View {
                         coordinator.toggleRecordingFromUI()
                     }) {
                         HStack(spacing: 6) {
-                            Image(systemName: audioManager.isRecording ? "stop.circle" : "record.circle")
-                            Text(audioManager.isRecording ? "Stop Recording" : "Start Recording")
+                            Image(systemName: audioManager.isPaused ? "play.circle" : (audioManager.isRecording ? "stop.circle" : "record.circle"))
+                            Text(audioManager.isPaused ? "Resume Recording" : (audioManager.isRecording ? "Stop Recording" : "Start Recording"))
                         }
                     }
                     .keyboardShortcut(.defaultAction)
 
                     if audioManager.isRecording {
-                        Button(action: {
-                            coordinator.togglePauseRecording()
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: audioManager.isPaused ? "play.circle" : "pause.circle")
-                                Text(audioManager.isPaused ? "Resume" : "Pause")
+                        if audioManager.isPaused {
+                            Button(action: {
+                                coordinator.stopRecordingFromUI()
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "stop.circle")
+                                    Text("Stop")
+                                }
                             }
+                            .buttonStyle(.borderless)
+                        } else {
+                            Button(action: {
+                                coordinator.togglePauseRecording()
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "pause.circle")
+                                    Text("Pause")
+                                }
+                            }
+                            .buttonStyle(.borderless)
                         }
-                        .buttonStyle(.borderless)
 
                         Button(action: {
                             coordinator.cancelRecording()

@@ -112,6 +112,11 @@ class RecordingCoordinator: ObservableObject {
         toggleRecording()
     }
 
+    func stopRecordingFromUI() {
+        guard audioManager.isRecording else { return }
+        finishRecording()
+    }
+
     func togglePauseRecording() {
         guard audioManager.isRecording else {
             logDebug("RecordingCoordinator: Ignoring pause/resume because no recording is active")
@@ -157,35 +162,11 @@ class RecordingCoordinator: ObservableObject {
         logInfo("RecordingCoordinator: toggleRecording called, current state: \(audioManager.isRecording), clipboardOnly: \(clipboardOnly)")
 
         if audioManager.isRecording {
-            logInfo("RecordingCoordinator: Stopping recording...")
-            mediaPlaybackManager.resumeIfWePaused()
-
-            if let recordingURL = audioManager.stopRecording() {
-                logInfo("RecordingCoordinator: Got recording URL: \(recordingURL)")
-                self.lastRecordingURL = recordingURL // Save for potential retry
-                logInfo("Recording completed: \(recordingURL.lastPathComponent)")
-                
-                // Verify the file exists and has data
-                if let fileSize = try? FileManager.default.attributesOfItem(atPath: recordingURL.path)[.size] as? Int64 {
-                    logInfo("RecordingCoordinator: Recording file size: \(fileSize) bytes")
-                    if fileSize > 0 {
-                        // Switch to transcribing mode
-                        WaveformIndicatorWindow.shared.showTranscribing()
-                        transcribeAudio(recordingURL: recordingURL)
-                    } else {
-                        logError("RecordingCoordinator: Recording file is empty")
-                        WaveformIndicatorWindow.shared.hide()
-                        showRecordingError()
-                    }
-                } else {
-                    logError("RecordingCoordinator: Could not get recording file size")
-                    WaveformIndicatorWindow.shared.hide()
-                    showRecordingError()
-                }
+            if audioManager.isPaused {
+                logInfo("RecordingCoordinator: Start/stop requested while paused; resuming recording")
+                togglePauseRecording()
             } else {
-                // Don't show an error - this is likely an intentionally short or silent recording
-                logInfo("RecordingCoordinator: Recording was too short or silent")
-                WaveformIndicatorWindow.shared.hide()
+                finishRecording()
             }
         } else {
             logInfo("RecordingCoordinator: Starting recording...")
@@ -203,6 +184,39 @@ class RecordingCoordinator: ObservableObject {
                     showOutputMode: autoPasteEnabled
                 )
             }
+        }
+    }
+
+    private func finishRecording() {
+        logInfo("RecordingCoordinator: Stopping recording...")
+        mediaPlaybackManager.resumeIfWePaused()
+
+        if let recordingURL = audioManager.stopRecording() {
+            logInfo("RecordingCoordinator: Got recording URL: \(recordingURL)")
+            self.lastRecordingURL = recordingURL // Save for potential retry
+            logInfo("Recording completed: \(recordingURL.lastPathComponent)")
+
+            // Verify the file exists and has data
+            if let fileSize = try? FileManager.default.attributesOfItem(atPath: recordingURL.path)[.size] as? Int64 {
+                logInfo("RecordingCoordinator: Recording file size: \(fileSize) bytes")
+                if fileSize > 0 {
+                    // Switch to transcribing mode
+                    WaveformIndicatorWindow.shared.showTranscribing()
+                    transcribeAudio(recordingURL: recordingURL)
+                } else {
+                    logError("RecordingCoordinator: Recording file is empty")
+                    WaveformIndicatorWindow.shared.hide()
+                    showRecordingError()
+                }
+            } else {
+                logError("RecordingCoordinator: Could not get recording file size")
+                WaveformIndicatorWindow.shared.hide()
+                showRecordingError()
+            }
+        } else {
+            // Don't show an error - this is likely an intentionally short or silent recording
+            logInfo("RecordingCoordinator: Recording was too short or silent")
+            WaveformIndicatorWindow.shared.hide()
         }
     }
     
