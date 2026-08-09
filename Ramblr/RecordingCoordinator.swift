@@ -67,6 +67,15 @@ class RecordingCoordinator: ObservableObject {
             logDebug("RecordingCoordinator: Received clipboard hotkey notification")
             self?.toggleRecording(clipboardOnly: true)
         }
+        // Observe pause/resume hotkey
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("PauseHotkeyPressed"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            logDebug("RecordingCoordinator: Received pause/resume hotkey notification")
+            self?.togglePauseRecording()
+        }
     }
     
     @objc private func updateTranscriptionStatus(_ notification: Notification) {
@@ -101,6 +110,24 @@ class RecordingCoordinator: ObservableObject {
     // Public method for UI to start/stop recording
     func toggleRecordingFromUI() {
         toggleRecording()
+    }
+
+    func togglePauseRecording() {
+        guard audioManager.isRecording else {
+            logDebug("RecordingCoordinator: Ignoring pause/resume because no recording is active")
+            return
+        }
+
+        if audioManager.isPaused {
+            if audioManager.resumeRecording() {
+                WaveformIndicatorWindow.shared.showWaveform(
+                    clipboardOnly: WaveformIndicatorWindow.shared.clipboardOnly,
+                    showOutputMode: WaveformIndicatorWindow.shared.showOutputMode
+                )
+            }
+        } else if audioManager.pauseRecording() {
+            WaveformIndicatorWindow.shared.showPaused()
+        }
     }
     
     // Public method to cancel the current recording without transcribing

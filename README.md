@@ -22,7 +22,7 @@ Ramblr is a native macOS app that lives in your menubar. All you need to do is d
 
 ## Features
 
-- Global customizable hotkeys to start/stop recording
+- Global customizable hotkeys to start/stop, pause/resume, or cancel recording
 - Near-perfect transcription via Whisper API
 - Copies to clipboard and notifies with sound when ready to paste, or auto-paste into active app
 - History of the last 10 transcriptions for quick re-copy

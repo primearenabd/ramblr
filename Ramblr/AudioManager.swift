@@ -4,6 +4,7 @@ import AppKit
 
 class AudioManager: NSObject, ObservableObject {
     @Published var isRecording = false
+    @Published private(set) var isPaused = false
     @Published var audioLevels: [Float] = []
     private var audioEngine: AVAudioEngine?
     private var inputNode: AVAudioInputNode?
@@ -110,7 +111,7 @@ class AudioManager: NSObject, ObservableObject {
         
         volumeMeter.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] (buffer, time) in
             self?.audioQueue.async { [weak self] in
-                guard let self = self, self.isRecording else { return }
+                guard let self = self, self.isRecording, !self.isPaused else { return }
                 
                 // Extract audio levels for waveform visualization
                 self.extractAudioLevels(buffer)
@@ -278,6 +279,7 @@ class AudioManager: NSObject, ObservableObject {
     
     func startRecording() {
         logInfo("AudioManager: Starting recording")
+        isPaused = false
 
         do {
             recordingURL = try recordingStore.beginRecording()
@@ -363,6 +365,7 @@ class AudioManager: NSObject, ObservableObject {
         
         // First mark as not recording to prevent new audio data from being processed
         isRecording = false
+        isPaused = false
         
         // Clear audio levels
         DispatchQueue.main.async { [weak self] in
@@ -402,6 +405,56 @@ class AudioManager: NSObject, ObservableObject {
         logError("AudioManager: Recording file not found at \(recordingURL)")
         recordingStore.delete(url: recordingURL)
         return nil
+    }
+
+    @discardableResult
+    func pauseRecording() -> Bool {
+        guard isRecording, !isPaused else { return false }
+
+        // Flip the state before draining the queue so any buffer already in
+        // flight is discarded instead of being written after the pause.
+        isPaused = true
+        audioQueue.sync { [weak self] in
+            self?.audioEngine?.stop()
+        }
+
+        audioLevels = Array(repeating: 0.02, count: 10)
+        NotificationCenter.default.post(
+            name: NSNotification.Name("RecordingStatusChanged"),
+            object: nil,
+            userInfo: ["isRecording": true, "isPaused": true]
+        )
+        logInfo("AudioManager: Recording paused; microphone input stopped")
+        return true
+    }
+
+    @discardableResult
+    func resumeRecording() -> Bool {
+        guard isRecording, isPaused, let audioEngine else { return false }
+
+        var startError: Error?
+        audioQueue.sync {
+            do {
+                audioEngine.prepare()
+                try audioEngine.start()
+            } catch {
+                startError = error
+            }
+        }
+
+        if let startError {
+            logError("AudioManager: Failed to resume recording: \(startError.localizedDescription)")
+            return false
+        }
+
+        isPaused = false
+        NotificationCenter.default.post(
+            name: NSNotification.Name("RecordingStatusChanged"),
+            object: nil,
+            userInfo: ["isRecording": true, "isPaused": false]
+        )
+        logInfo("AudioManager: Recording resumed")
+        return true
     }
 
     private var recordingDuration: TimeInterval {

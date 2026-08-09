@@ -3,6 +3,7 @@ import AppKit
 
 enum IndicatorMode {
     case waveform
+    case paused
     case transcribing
 }
 
@@ -99,6 +100,13 @@ final class WaveformIndicatorWindow: ObservableObject {
             self?.show()
         }
     }
+
+    func showPaused() {
+        DispatchQueue.main.async { [weak self] in
+            self?.mode = .paused
+            self?.show()
+        }
+    }
     
     private func openMenuBarMenu() {
         // Find and click the menu bar item to open the menu
@@ -155,6 +163,27 @@ private struct PulsingDotsView: View {
     }
 }
 
+private struct PausedIndicatorView: View {
+    @State private var isGlowing = false
+
+    var body: some View {
+        Image(systemName: "pause.fill")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundColor(.orange)
+            .scaleEffect(isGlowing ? 1.08 : 0.94)
+            .shadow(
+                color: .orange.opacity(isGlowing ? 0.95 : 0.3),
+                radius: isGlowing ? 6 : 2
+            )
+            .animation(
+                .easeInOut(duration: 0.9).repeatForever(autoreverses: true),
+                value: isGlowing
+            )
+            .onAppear { isGlowing = true }
+            .onDisappear { isGlowing = false }
+    }
+}
+
 private struct WaveformIndicatorView: View {
     @ObservedObject var model: WaveformModel
     @ObservedObject var windowModel: WaveformIndicatorWindow
@@ -172,6 +201,9 @@ private struct WaveformIndicatorView: View {
                     switch windowModel.mode {
                     case .waveform:
                         WaveformView(model: model)
+                            .frame(width: 50, height: 12)
+                    case .paused:
+                        PausedIndicatorView()
                             .frame(width: 50, height: 12)
                     case .transcribing:
                         PulsingDotsView()
@@ -206,4 +238,3 @@ private struct WaveformIndicatorView: View {
         .background(Color.clear)
     }
 }
-

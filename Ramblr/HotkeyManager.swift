@@ -7,6 +7,7 @@ class HotkeyManager: ObservableObject {
     private var startStopHotKeyRef: EventHotKeyRef?
     private var cancelHotKeyRef: EventHotKeyRef?
     private var clipboardHotKeyRef: EventHotKeyRef?
+    private var pauseHotKeyRef: EventHotKeyRef?
 
     // Persisted hotkey configuration
     @Published private(set) var keyCode: UInt32
@@ -15,6 +16,8 @@ class HotkeyManager: ObservableObject {
     @Published private(set) var cancelModifiers: UInt32
     @Published private(set) var clipboardKeyCode: UInt32
     @Published private(set) var clipboardModifiers: UInt32
+    @Published private(set) var pauseKeyCode: UInt32
+    @Published private(set) var pauseModifiers: UInt32
 
     private let keyCodeDefaultsKey = "HotkeyKeyCode"
     private let modifiersDefaultsKey = "HotkeyModifiers"
@@ -22,10 +25,13 @@ class HotkeyManager: ObservableObject {
     private let cancelModifiersDefaultsKey = "CancelHotkeyModifiers"
     private let clipboardKeyCodeDefaultsKey = "ClipboardHotkeyKeyCode"
     private let clipboardModifiersDefaultsKey = "ClipboardHotkeyModifiers"
+    private let pauseKeyCodeDefaultsKey = "PauseHotkeyKeyCode"
+    private let pauseModifiersDefaultsKey = "PauseHotkeyModifiers"
     
     init() {
         logInfo("HotkeyManager: Initializing")
-        // Load persisted hotkeys or defaults: Option+D (start/stop), Option+C (cancel)
+        // Load persisted hotkeys or defaults: Option+D (start/stop),
+        // Option+C (cancel), Option+Z (pause/resume).
         let storedKeyCode = UserDefaults.standard.object(forKey: keyCodeDefaultsKey) as? Int
         let storedModifiers = UserDefaults.standard.object(forKey: modifiersDefaultsKey) as? UInt32
         self.keyCode = UInt32(storedKeyCode ?? Int(kVK_ANSI_D))
@@ -38,6 +44,10 @@ class HotkeyManager: ObservableObject {
         let storedClipboardModifiers = UserDefaults.standard.object(forKey: clipboardModifiersDefaultsKey) as? UInt32
         self.clipboardKeyCode = UInt32(storedClipboardKeyCode ?? Int(kVK_ANSI_D))
         self.clipboardModifiers = storedClipboardModifiers ?? (UInt32(optionKey) | UInt32(shiftKey))
+        let storedPauseKeyCode = UserDefaults.standard.object(forKey: pauseKeyCodeDefaultsKey) as? Int
+        let storedPauseModifiers = UserDefaults.standard.object(forKey: pauseModifiersDefaultsKey) as? UInt32
+        self.pauseKeyCode = UInt32(storedPauseKeyCode ?? Int(kVK_ANSI_Z))
+        self.pauseModifiers = storedPauseModifiers ?? UInt32(optionKey)
         setupHotkeys()
         
         // Register for workspace notifications to handle sleep/wake
@@ -65,7 +75,7 @@ class HotkeyManager: ObservableObject {
         
         gMyHotKeyID.signature = FourCharCode(signature)
         
-        // Install handler (one handler for both hotkeys)
+        // Install one handler for all registered hotkeys.
         var eventType = EventTypeSpec()
         eventType.eventClass = OSType(kEventClassKeyboard)
         eventType.eventKind = OSType(kEventHotKeyPressed)
@@ -96,6 +106,11 @@ class HotkeyManager: ObservableObject {
                     DispatchQueue.main.async {
                         logDebug("HotkeyManager: Clipboard hotkey pressed")
                         NotificationCenter.default.post(name: NSNotification.Name("ClipboardHotkeyPressed"), object: nil)
+                    }
+                } else if hotKeyID.id == 4 {
+                    DispatchQueue.main.async {
+                        logDebug("HotkeyManager: Pause hotkey pressed")
+                        NotificationCenter.default.post(name: NSNotification.Name("PauseHotkeyPressed"), object: nil)
                     }
                 }
                 return noErr
@@ -149,6 +164,19 @@ class HotkeyManager: ObservableObject {
         )
         if registerClipboard != noErr { logError("HotkeyManager: Failed to register clipboard hotkey") }
         else { logInfo("HotkeyManager: Registered clipboard hotkey: \(clipboardDisplayString)") }
+
+        // Register Pause/Resume hotkey (id 4)
+        gMyHotKeyID.id = UInt32(4)
+        let registerPause = RegisterEventHotKey(
+            pauseKeyCode,
+            pauseModifiers,
+            gMyHotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &pauseHotKeyRef
+        )
+        if registerPause != noErr { logError("HotkeyManager: Failed to register pause/resume hotkey") }
+        else { logInfo("HotkeyManager: Registered pause/resume hotkey: \(pauseDisplayString)") }
     }
     
     private func cleanupHotkeys() {
@@ -164,6 +192,10 @@ class HotkeyManager: ObservableObject {
         if let ref = clipboardHotKeyRef {
             UnregisterEventHotKey(ref)
             self.clipboardHotKeyRef = nil
+        }
+        if let ref = pauseHotKeyRef {
+            UnregisterEventHotKey(ref)
+            self.pauseHotKeyRef = nil
         }
 
         if let eventHandler = eventHandler {
@@ -212,6 +244,15 @@ class HotkeyManager: ObservableObject {
         setupHotkeys()
     }
 
+    func updatePauseHotkey(keyCode: UInt32, modifiers: UInt32) {
+        logInfo("HotkeyManager: Updating pause/resume hotkey")
+        self.pauseKeyCode = keyCode
+        self.pauseModifiers = modifiers
+        UserDefaults.standard.set(Int(keyCode), forKey: pauseKeyCodeDefaultsKey)
+        UserDefaults.standard.set(modifiers, forKey: pauseModifiersDefaultsKey)
+        setupHotkeys()
+    }
+
     var clipboardDisplayString: String {
         let symbols = Self.symbols(forCarbonModifiers: clipboardModifiers)
         let key = Self.keyName(fromKeyCode: clipboardKeyCode) ?? "KeyCode \(clipboardKeyCode)"
@@ -227,6 +268,12 @@ class HotkeyManager: ObservableObject {
     var cancelDisplayString: String {
         let symbols = Self.symbols(forCarbonModifiers: cancelModifiers)
         let key = Self.keyName(fromKeyCode: cancelKeyCode) ?? "KeyCode \(cancelKeyCode)"
+        return symbols + key
+    }
+
+    var pauseDisplayString: String {
+        let symbols = Self.symbols(forCarbonModifiers: pauseModifiers)
+        let key = Self.keyName(fromKeyCode: pauseKeyCode) ?? "KeyCode \(pauseKeyCode)"
         return symbols + key
     }
     

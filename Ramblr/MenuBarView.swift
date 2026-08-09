@@ -15,6 +15,7 @@ struct MenuBarView: View {
     @State private var groqApiKey: String = UserDefaults.standard.string(forKey: "GroqAPIKey") ?? ""
     @State private var autoPasteEnabled: Bool = (UserDefaults.standard.object(forKey: "AutoPasteEnabled") as? Bool) ?? false
     @State private var showHotkeyChangePopover: Bool = false
+    @State private var showPauseHotkeyChangePopover: Bool = false
     @State private var showCancelHotkeyChangePopover: Bool = false
     @State private var showClipboardHotkeyChangePopover: Bool = false
     @State private var saveFolderEnabled: Bool = UserDefaults.standard.bool(forKey: "TranscriptionSaveFolderEnabled")
@@ -48,6 +49,9 @@ struct MenuBarView: View {
                 } else if (autoPasteEnabled || mediaPlaybackManager.isEnabled) && !transcriptionManager.hasAccessibilityPermission {
                     Text("Needs Accessibility Permission")
                         .foregroundColor(.red)
+                } else if audioManager.isRecording && audioManager.isPaused {
+                    Text("Paused")
+                        .foregroundColor(.orange)
                 } else if audioManager.isRecording {
                     Text("Recording...")
                         .foregroundColor(.red)
@@ -75,8 +79,10 @@ struct MenuBarView: View {
             }
             
             Divider().padding(.top, 6)
-            
-            VStack(alignment: .leading, spacing: 8) {
+
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 8) {
                 // Model & API key summary
                 HStack(spacing: 4) {
                     if !transcriptionManager.hasRequiredAPIKey {
@@ -245,8 +251,8 @@ struct MenuBarView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 }
-            }
-            .padding(.vertical, 5)
+                    }
+                    .padding(.vertical, 5)
             
             if (autoPasteEnabled || mediaPlaybackManager.isEnabled) && !transcriptionManager.hasAccessibilityPermission {
                 Text("⚠️ Accessibility permission required")
@@ -275,6 +281,16 @@ struct MenuBarView: View {
                     .keyboardShortcut(.defaultAction)
 
                     if audioManager.isRecording {
+                        Button(action: {
+                            coordinator.togglePauseRecording()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: audioManager.isPaused ? "play.circle" : "pause.circle")
+                                Text(audioManager.isPaused ? "Resume" : "Pause")
+                            }
+                        }
+                        .buttonStyle(.borderless)
+
                         Button(action: {
                             coordinator.cancelRecording()
                         }) {
@@ -327,6 +343,38 @@ struct MenuBarView: View {
                                     showHotkeyChangePopover = false
                                 },
                                 onCancel: { showHotkeyChangePopover = false }
+                            )
+                            .frame(width: 200, height: 0)
+                        }
+                        .padding(8)
+                        .padding(.top, 6)
+                    }
+                }
+                HStack(spacing: 4) {
+                    Text("Press")
+                    Text(hotkeyManager.pauseDisplayString)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    Text("to pause/resume recording.")
+                    Button(action: { showPauseHotkeyChangePopover = true }) {
+                        Text("Change").underline()
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showPauseHotkeyChangePopover, arrowEdge: .top) {
+                        VStack(spacing: 6) {
+                            Text("Press desired shortcut")
+                                .font(.headline)
+                            Text("Include modifiers like ⌘ ⌥ ⌃ ⇧")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                            KeyCaptureRepresentable(
+                                onCaptured: { keyCode, flags in
+                                    let carbonMods = HotkeyManager.carbonFlags(from: flags)
+                                    hotkeyManager.updatePauseHotkey(keyCode: UInt32(keyCode), modifiers: carbonMods)
+                                    showPauseHotkeyChangePopover = false
+                                },
+                                onCancel: { showPauseHotkeyChangePopover = false }
                             )
                             .frame(width: 200, height: 0)
                         }
@@ -530,6 +578,11 @@ struct MenuBarView: View {
                 CheckForUpdatesView(updater: updater)
                 Spacer()
             }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, 4)
+            }
+            .frame(height: menuScrollHeight)
         }
         .padding()
         .frame(width: 320)
@@ -565,6 +618,11 @@ struct MenuBarView: View {
 
     private var formattedStorageSize: String {
         ByteCountFormatter.string(fromByteCount: recordingStore.storageBytes, countStyle: .file)
+    }
+
+    private var menuScrollHeight: CGFloat {
+        let visibleHeight = NSScreen.main?.visibleFrame.height ?? 800
+        return min(600, max(300, visibleHeight - 170))
     }
 
     private func recordingIcon(for status: RecordingStatus) -> String {
