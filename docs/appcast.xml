@@ -6,6 +6,23 @@
         <description>Updates for Ramblr</description>
         <language>en</language>
         <item>
+            <title>1.11.0</title>
+            <pubDate>Sun, 09 Aug 2026 11:32:47 -0700</pubDate>
+            <link>https://nfarina.github.io/ramblr</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/nfarina/ramblr/releases/tag/v1.11.0</sparkle:fullReleaseNotesLink>
+            <sparkle:version>23</sparkle:version>
+            <sparkle:shortVersionString>1.11.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## What's new
+
+- Pause and resume an active recording with the new customizable hotkey, `Option-Z` by default. Paused time is omitted from the audio, and the floating indicator changes to a softly glowing pause icon.
+- Pause, resume, stop, or cancel directly from the Ramblr menu while a recording is active.
+- The menu content below the status line now scrolls, keeping every setting and recent item accessible on smaller screens.
+]]></description>
+            <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.11.0/Ramblr-1.11.0-macos.zip" length="3028680" type="application/octet-stream" sparkle:edSignature="OQZghys2+EGMbSVuCTApxdig+/zooXTC4OmbEvY4+t8G6IxWSFibAAebv7e5Iz8ji/trvPd1TY+ZRgiFNFSTDw=="/>
+        </item>
+        <item>
             <title>1.10.1</title>
             <pubDate>Sat, 08 Aug 2026 14:10:09 -0700</pubDate>
             <link>https://nfarina.github.io/ramblr</link>
@@ -37,25 +54,6 @@
 **Heads up if you have scripts or automation watching your save folder**: this changes the on-disk layout. Files used to land directly in the date folder (e.g. `2026/08/03/note.txt`); they now land one level deeper (e.g. `2026/08/03/voicememo/note.txt` or `2026/08/03/hotkey/note.txt`). Update any paths your own tooling depends on.
 ]]></description>
             <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.10.0/Ramblr-1.10.0-macos.zip" length="3002824" type="application/octet-stream" sparkle:edSignature="IWSFnTS99agPmeQGVRo4vj3IPCH/IGUPm5dYaoUQa1dMtKcATNqxp6QRU+mfTebt1eEvtbkWhgZOgcGxRBTwAA=="/>
-        </item>
-        <item>
-            <title>1.9.0</title>
-            <pubDate>Fri, 17 Jul 2026 17:55:01 -0700</pubDate>
-            <link>https://nfarina.github.io/ramblr</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/nfarina/ramblr/releases/tag/v1.9.0</sparkle:fullReleaseNotesLink>
-            <sparkle:version>20</sparkle:version>
-            <sparkle:shortVersionString>1.9.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[## What's new
-
-- Recent recordings are now kept safely across app updates and relaunches, with a 24-hour default retention window.
-- Retranscribe any recent recording, try another model, reveal it in Finder, save it permanently, or delete it immediately.
-- Configure audio retention and a storage limit directly from the Ramblr menu.
-- Desktop recordings now use compact AAC audio with unique filenames instead of a shared temporary WAV file.
-- Failed and interrupted recordings are preserved for recovery, while disposable upload chunks are cleaned up safely.
-]]></description>
-            <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.9.0/Ramblr-1.9.0-macos.zip" length="3000626" type="application/octet-stream" sparkle:edSignature="YUkPIwDx/GIcUOI3S51awFCcnD00fAf+FVUZP3bvhrZB8uTMbc/UmZ0iv/n6y+wzq3Z/XUcuFnfhUx16L1SpAA=="/>
         </item>
     </channel>
 </rss>
