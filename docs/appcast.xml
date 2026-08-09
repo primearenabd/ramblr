@@ -6,6 +6,22 @@
         <description>Updates for Ramblr</description>
         <language>en</language>
         <item>
+            <title>1.11.1</title>
+            <pubDate>Sun, 09 Aug 2026 11:44:45 -0700</pubDate>
+            <link>https://nfarina.github.io/ramblr</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/nfarina/ramblr/releases/tag/v1.11.1</sparkle:fullReleaseNotesLink>
+            <sparkle:version>24</sparkle:version>
+            <sparkle:shortVersionString>1.11.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## What's new
+
+- Pressing the start/stop recording shortcut while paused now safely resumes the in-progress recording instead of ending it.
+- The paused menu state now makes Resume Recording the primary action while keeping Stop available as an explicit choice.
+]]></description>
+            <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.11.1/Ramblr-1.11.1-macos.zip" length="3030526" type="application/octet-stream" sparkle:edSignature="j9gUFhkVG5WM4Q5ZPc13DMGL+yLFn8b46sJi8jhHkvxp6T0VCDAxR4bX018op1oQx9chs0lMpFBG8SKfCkuDAw=="/>
+        </item>
+        <item>
             <title>1.11.0</title>
             <pubDate>Sun, 09 Aug 2026 11:32:47 -0700</pubDate>
             <link>https://nfarina.github.io/ramblr</link>
@@ -36,24 +52,6 @@
 - Auto-imported Voice Memos now preserve their original recording date and time. Saved transcripts use that timestamp in their date folder and filename, and their filesystem creation and modification dates match the memo as well.
 ]]></description>
             <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.10.1/Ramblr-1.10.1-macos.zip" length="3006832" type="application/octet-stream" sparkle:edSignature="vFbZB0bB79SFES65o71rhAYtCcmAqqFkcmBdlMssqvQLpC/LbyWliTdasB6EwmFuwLJhALGNG+G9RenIxZ1QBw=="/>
-        </item>
-        <item>
-            <title>1.10.0</title>
-            <pubDate>Mon, 03 Aug 2026 13:19:35 -0700</pubDate>
-            <link>https://nfarina.github.io/ramblr</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/nfarina/ramblr/releases/tag/v1.10.0</sparkle:fullReleaseNotesLink>
-            <sparkle:version>21</sparkle:version>
-            <sparkle:shortVersionString>1.10.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[## What's new
-
-- Fixed Voice Memos transcription: iPhone Voice Memos (`.qta` files) were being rejected by the Groq/OpenAI transcription APIs because of their file extension, silently failing every auto-import since v1.7.6. Ramblr now presents these files as `.m4a` for upload, which the APIs accept.
-- Transcripts saved to your save folder are now filed into a `voicememo/` or `hotkey/` subdirectory (under the existing date folder), depending on whether they came from an auto-imported Voice Memo or a Mac hotkey recording.
-
-**Heads up if you have scripts or automation watching your save folder**: this changes the on-disk layout. Files used to land directly in the date folder (e.g. `2026/08/03/note.txt`); they now land one level deeper (e.g. `2026/08/03/voicememo/note.txt` or `2026/08/03/hotkey/note.txt`). Update any paths your own tooling depends on.
-]]></description>
-            <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.10.0/Ramblr-1.10.0-macos.zip" length="3002824" type="application/octet-stream" sparkle:edSignature="IWSFnTS99agPmeQGVRo4vj3IPCH/IGUPm5dYaoUQa1dMtKcATNqxp6QRU+mfTebt1eEvtbkWhgZOgcGxRBTwAA=="/>
         </item>
     </channel>
 </rss>
