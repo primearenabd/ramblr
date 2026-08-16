@@ -8,6 +8,7 @@ class HotkeyManager: ObservableObject {
     private var cancelHotKeyRef: EventHotKeyRef?
     private var clipboardHotKeyRef: EventHotKeyRef?
     private var pauseHotKeyRef: EventHotKeyRef?
+    private var isPauseHotkeyEnabled = false
 
     // Persisted hotkey configuration
     @Published private(set) var keyCode: UInt32
@@ -49,6 +50,13 @@ class HotkeyManager: ObservableObject {
         self.pauseKeyCode = UInt32(storedPauseKeyCode ?? Int(kVK_ANSI_Z))
         self.pauseModifiers = storedPauseModifiers ?? UInt32(optionKey)
         setupHotkeys()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRecordingStatusChanged),
+            name: NSNotification.Name("RecordingStatusChanged"),
+            object: nil
+        )
         
         // Register for workspace notifications to handle sleep/wake
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -65,15 +73,7 @@ class HotkeyManager: ObservableObject {
         
         var gMyHotKeyID = EventHotKeyID()
         
-        // Convert four-char code to OSType using Unicode scalars
-        let fourCharCode = "htk1"
-        let scalars = fourCharCode.unicodeScalars
-        let signature = (UInt32(scalars[scalars.startIndex].value) << 24) |
-                       (UInt32(scalars[scalars.index(after: scalars.startIndex)].value) << 16) |
-                       (UInt32(scalars[scalars.index(scalars.startIndex, offsetBy: 2)].value) << 8) |
-                       UInt32(scalars[scalars.index(scalars.startIndex, offsetBy: 3)].value)
-        
-        gMyHotKeyID.signature = FourCharCode(signature)
+        gMyHotKeyID.signature = Self.hotkeySignature
         
         // Install one handler for all registered hotkeys.
         var eventType = EventTypeSpec()
@@ -165,18 +165,45 @@ class HotkeyManager: ObservableObject {
         if registerClipboard != noErr { logError("HotkeyManager: Failed to register clipboard hotkey") }
         else { logInfo("HotkeyManager: Registered clipboard hotkey: \(clipboardDisplayString)") }
 
-        // Register Pause/Resume hotkey (id 4)
-        gMyHotKeyID.id = UInt32(4)
-        let registerPause = RegisterEventHotKey(
+        registerPauseHotkeyIfNeeded(signature: gMyHotKeyID.signature)
+    }
+
+    private func registerPauseHotkeyIfNeeded(signature: FourCharCode? = nil) {
+        guard isPauseHotkeyEnabled, pauseHotKeyRef == nil else { return }
+
+        var hotKeyID = EventHotKeyID()
+        hotKeyID.signature = signature ?? Self.hotkeySignature
+        hotKeyID.id = UInt32(4)
+        let status = RegisterEventHotKey(
             pauseKeyCode,
             pauseModifiers,
-            gMyHotKeyID,
+            hotKeyID,
             GetApplicationEventTarget(),
             0,
             &pauseHotKeyRef
         )
-        if registerPause != noErr { logError("HotkeyManager: Failed to register pause/resume hotkey") }
-        else { logInfo("HotkeyManager: Registered pause/resume hotkey: \(pauseDisplayString)") }
+        if status != noErr {
+            logError("HotkeyManager: Failed to register pause/resume hotkey")
+        } else {
+            logInfo("HotkeyManager: Registered pause/resume hotkey while recording: \(pauseDisplayString)")
+        }
+    }
+
+    private func unregisterPauseHotkey() {
+        guard let ref = pauseHotKeyRef else { return }
+        UnregisterEventHotKey(ref)
+        pauseHotKeyRef = nil
+        logInfo("HotkeyManager: Released pause/resume hotkey")
+    }
+
+    private func setPauseHotkeyEnabled(_ enabled: Bool) {
+        guard enabled != isPauseHotkeyEnabled else { return }
+        isPauseHotkeyEnabled = enabled
+        if enabled {
+            registerPauseHotkeyIfNeeded()
+        } else {
+            unregisterPauseHotkey()
+        }
     }
     
     private func cleanupHotkeys() {
@@ -193,10 +220,7 @@ class HotkeyManager: ObservableObject {
             UnregisterEventHotKey(ref)
             self.clipboardHotKeyRef = nil
         }
-        if let ref = pauseHotKeyRef {
-            UnregisterEventHotKey(ref)
-            self.pauseHotKeyRef = nil
-        }
+        unregisterPauseHotkey()
 
         if let eventHandler = eventHandler {
             RemoveEventHandler(eventHandler)
@@ -208,10 +232,16 @@ class HotkeyManager: ObservableObject {
         logInfo("HotkeyManager: System woke from sleep, reinstalling hotkey")
         setupHotkeys()
     }
+
+    @objc private func handleRecordingStatusChanged(_ notification: Notification) {
+        guard let isRecording = notification.userInfo?["isRecording"] as? Bool else { return }
+        setPauseHotkeyEnabled(isRecording)
+    }
     
     deinit {
         logInfo("HotkeyManager: Deinitializing")
         cleanupHotkeys()
+        NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
@@ -278,6 +308,16 @@ class HotkeyManager: ObservableObject {
     }
     
     // MARK: - Helpers
+
+    private static let hotkeySignature: FourCharCode = {
+        let scalars = "htk1".unicodeScalars
+        return FourCharCode(
+            (UInt32(scalars[scalars.startIndex].value) << 24) |
+            (UInt32(scalars[scalars.index(after: scalars.startIndex)].value) << 16) |
+            (UInt32(scalars[scalars.index(scalars.startIndex, offsetBy: 2)].value) << 8) |
+            UInt32(scalars[scalars.index(scalars.startIndex, offsetBy: 3)].value)
+        )
+    }()
     
     static func carbonFlags(from flags: NSEvent.ModifierFlags) -> UInt32 {
         var carbon: UInt32 = 0
