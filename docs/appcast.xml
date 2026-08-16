@@ -6,6 +6,21 @@
         <description>Updates for Ramblr</description>
         <language>en</language>
         <item>
+            <title>1.11.2</title>
+            <pubDate>Sun, 16 Aug 2026 15:02:27 -0700</pubDate>
+            <link>https://nfarina.github.io/ramblr</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/nfarina/ramblr/releases/tag/v1.11.2</sparkle:fullReleaseNotesLink>
+            <sparkle:version>25</sparkle:version>
+            <sparkle:shortVersionString>1.11.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## What's new
+
+- Ramblr now reserves the pause/resume shortcut only while a recording is active, leaving the shortcut available to other apps whenever Ramblr is idle.
+]]></description>
+            <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.11.2/Ramblr-1.11.2-macos.zip" length="3031260" type="application/octet-stream" sparkle:edSignature="wgR2gW/cmB1i0eICyKuX62AUttqZ9iHAJFnLMg1ya1W34zKNEn1jt7uQXVX3hhSpf2qaGN2tqIoBniOo1JaWAA=="/>
+        </item>
+        <item>
             <title>1.11.1</title>
             <pubDate>Sun, 09 Aug 2026 11:44:45 -0700</pubDate>
             <link>https://nfarina.github.io/ramblr</link>
@@ -37,21 +52,6 @@
 - The menu content below the status line now scrolls, keeping every setting and recent item accessible on smaller screens.
 ]]></description>
             <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.11.0/Ramblr-1.11.0-macos.zip" length="3028680" type="application/octet-stream" sparkle:edSignature="OQZghys2+EGMbSVuCTApxdig+/zooXTC4OmbEvY4+t8G6IxWSFibAAebv7e5Iz8ji/trvPd1TY+ZRgiFNFSTDw=="/>
-        </item>
-        <item>
-            <title>1.10.1</title>
-            <pubDate>Sat, 08 Aug 2026 14:10:09 -0700</pubDate>
-            <link>https://nfarina.github.io/ramblr</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/nfarina/ramblr/releases/tag/v1.10.1</sparkle:fullReleaseNotesLink>
-            <sparkle:version>22</sparkle:version>
-            <sparkle:shortVersionString>1.10.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[## What's new
-
-- Auto-imported Voice Memos now preserve their original recording date and time. Saved transcripts use that timestamp in their date folder and filename, and their filesystem creation and modification dates match the memo as well.
-]]></description>
-            <enclosure url="https://github.com/nfarina/ramblr/releases/download/v1.10.1/Ramblr-1.10.1-macos.zip" length="3006832" type="application/octet-stream" sparkle:edSignature="vFbZB0bB79SFES65o71rhAYtCcmAqqFkcmBdlMssqvQLpC/LbyWliTdasB6EwmFuwLJhALGNG+G9RenIxZ1QBw=="/>
         </item>
     </channel>
 </rss>
