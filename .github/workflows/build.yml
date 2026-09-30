@@ -33,7 +33,25 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
+            ENABLE_HARDENED_RUNTIME=NO \
             build
+
+      # Without hardened runtime, macOS won't reject the bundled Sparkle
+      # framework for having a different signer than our ad-hoc signature.
+      # Launch the app and make sure it doesn't crash at startup.
+      - name: Smoke test launch
+        run: |
+          build/Build/Products/Release/Ramblr.app/Contents/MacOS/Ramblr > launch.log 2>&1 &
+          PID=$!
+          sleep 8
+          if kill -0 $PID 2>/dev/null; then
+            echo "App is running after 8s"
+            kill $PID
+          else
+            echo "App exited during startup:"
+            cat launch.log
+            exit 1
+          fi
 
       - name: Package app
         run: ditto -c -k --keepParent build/Build/Products/Release/Ramblr.app Ramblr.zip
