@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    branches: [main, streaming-transcription]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Run RamblrKit tests
+        working-directory: RamblrKit
+        run: swift test
+
+      # The app's build phase copies MediaRemoteAdapter from this package.
+      - name: Install media-control
+        run: brew install media-control
+
+      # Ad-hoc signed (no Apple developer account needed) so it runs on Apple Silicon.
+      - name: Build Ramblr.app
+        run: |
+          xcodebuild \
+            -project Ramblr.xcodeproj \
+            -scheme Ramblr \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            build
+
+      - name: Package app
+        run: ditto -c -k --keepParent build/Build/Products/Release/Ramblr.app Ramblr.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ramblr-app
+          path: Ramblr.zip
