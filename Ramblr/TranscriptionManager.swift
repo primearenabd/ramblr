@@ -113,6 +113,27 @@ class TranscriptionManager: ObservableObject {
 
     var currentOpenAIKey: String { apiKey ?? "" }
     var currentGroqAPIKey: String { groqApiKey ?? "" }
+
+    /// Whether audio is transcribed in chunks while recording (defaults to on).
+    /// Toggle with: defaults write <bundle id> StreamingTranscriptionEnabled -bool NO
+    private var streamingEnabled: Bool {
+        (UserDefaults.standard.object(forKey: "StreamingTranscriptionEnabled") as? Bool) ?? true
+    }
+
+    /// Creates a session that transcribes chunks while the user is still talking,
+    /// or nil if streaming is disabled or the selected provider has no API key
+    /// (in which case the normal whole-file path reports the problem).
+    func makeStreamingSession() -> ChunkedTranscriptionSession? {
+        guard streamingEnabled else { return nil }
+        let model = TranscriptionModel(identifier: transcriptionModel)
+        let key = (model.provider == .groq ? groqApiKey : apiKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !key.isEmpty else { return nil }
+        let service = TranscriptionService(requestTimeout: requestTimeout, maxRetries: maxRetries) { message in
+            logInfo(message)
+        }
+        return ChunkedTranscriptionSession(service: service, model: model, apiKey: key)
+    }
     
     func checkAccessibilityPermission(shouldPrompt: Bool = false) {
         // Check if we have accessibility permission

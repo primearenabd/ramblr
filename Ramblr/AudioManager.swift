@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import AppKit
+import RamblrKit
 
 class AudioManager: NSObject, ObservableObject {
     @Published var isRecording = false
@@ -16,6 +17,17 @@ class AudioManager: NSObject, ObservableObject {
     private let recordingStore: RecordingStore
     
     // Audio analysis parameters
+    // Live chunking for streaming transcription. While recording, audio is also
+    // written to short chunk files that are handed to `chunkHandler` as soon as
+    // each one is finished, so uploads overlap with speech. The full recording
+    // file above is still written in parallel and remains the fallback.
+    /// Called on the audio queue with each finished chunk. Set before `startRecording()`.
+    var chunkHandler: ((URL) -> Void)?
+    private var chunkPlanner = ChunkPlanner()
+    private var chunkFile: AVAudioFile?
+    private var chunkFileURL: URL?
+    private var chunksCut = 0
+
     private var totalSamples: Int = 0
     private var silentSamples: Int = 0
     private var analysisSampleRate: Double = 16000
@@ -159,6 +171,14 @@ class AudioManager: NSObject, ObservableObject {
                 } catch {
                     logError("AudioManager: Failed to write buffer: \(error)")
                 }
+
+                if self.chunkHandler != nil {
+                    self.appendToChunk(
+                        finalBuffer,
+                        duration: Double(buffer.frameLength) / inputFormat.sampleRate,
+                        rms: self.rms(of: buffer)
+                    )
+                }
             }
         }
     }
@@ -195,17 +215,84 @@ class AudioManager: NSObject, ObservableObject {
         
     }
     
-    private func extractAudioLevels(_ buffer: AVAudioPCMBuffer) {
-        guard let channelData = buffer.floatChannelData?[0] else { return }
+    /// Root-mean-square level of the first channel (0 for empty or non-float buffers).
+    private func rms(of buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData?[0] else { return 0 }
         let frameLength = Int(buffer.frameLength)
-        
-        // Calculate RMS (root mean square) for audio level
+        guard frameLength > 0 else { return 0 }
         var sum: Float = 0
         for i in 0..<frameLength {
             let sample = channelData[i]
             sum += sample * sample
         }
-        let rms = sqrt(sum / Float(frameLength))
+        return sqrt(sum / Float(frameLength))
+    }
+
+    // MARK: - Live Chunking
+
+    private func appendToChunk(_ buffer: AVAudioPCMBuffer, duration: TimeInterval, rms: Float) {
+        if chunkFile == nil {
+            let url = URL(fileURLWithPath: "/tmp", isDirectory: true)
+                .appendingPathComponent("ramblr-chunk-\(UUID().uuidString)-live\(chunksCut).m4a")
+            do {
+                chunkFile = try AVAudioFile(
+                    forWriting: url,
+                    settings: recordingSettings,
+                    commonFormat: whisperFormat.commonFormat,
+                    interleaved: whisperFormat.isInterleaved
+                )
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                chunkFileURL = url
+            } catch {
+                logError("AudioManager: Failed to create chunk file: \(error)")
+                return
+            }
+        }
+
+        do {
+            try chunkFile?.write(from: buffer)
+        } catch {
+            logError("AudioManager: Failed to write chunk buffer: \(error)")
+        }
+
+        if chunkPlanner.ingest(duration: duration, rms: rms) {
+            chunksCut += 1
+            finishCurrentChunk()
+        }
+    }
+
+    /// Close the current chunk file and hand it off if it contains speech.
+    private func finishCurrentChunk() {
+        let summary = chunkPlanner.finishChunk()
+        chunkFile?.close()
+        chunkFile = nil
+        guard let url = chunkFileURL else { return }
+        chunkFileURL = nil
+
+        if chunkPlanner.isWorthTranscribing(summary), let handler = chunkHandler {
+            logInfo("AudioManager: Chunk ready (\(String(format: "%.1f", summary.duration))s), sending for transcription")
+            handler(url)
+        } else {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// Called when recording stops. If the recording was long enough to have been
+    /// cut at least once, the remaining tail becomes the final chunk; otherwise the
+    /// caller transcribes the full (short) recording in one request as before.
+    private func finalizeChunksOnStop() {
+        if chunksCut > 0 {
+            finishCurrentChunk()
+        } else {
+            chunkFile?.close()
+            chunkFile = nil
+            if let url = chunkFileURL { try? FileManager.default.removeItem(at: url) }
+            chunkFileURL = nil
+        }
+    }
+
+    private func extractAudioLevels(_ buffer: AVAudioPCMBuffer) {
+        let rms = self.rms(of: buffer)
         
         // Apply threshold to reduce noise during silence
         let threshold: Float = 0.002 // Slightly higher threshold to reduce sensitivity
@@ -299,6 +386,10 @@ class AudioManager: NSObject, ObservableObject {
             // Reset audio analysis
             self.totalSamples = 0
             self.silentSamples = 0
+            self.chunkPlanner = ChunkPlanner()
+            self.chunkFile = nil
+            self.chunkFileURL = nil
+            self.chunksCut = 0
             
             // Make sure we have a fresh audio engine setup
             DispatchQueue.main.sync {
@@ -377,6 +468,7 @@ class AudioManager: NSObject, ObservableObject {
             logInfo("AudioManager: Stopping audio engine and cleaning up")
             self?.audioEngine?.stop()
             self?.volumeMeter?.removeTap(onBus: 0)
+            self?.finalizeChunksOnStop()
             // Close the audio file explicitly
             if let audioFile = self?.audioFile {
                 audioFile.close()

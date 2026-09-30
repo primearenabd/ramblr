@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import AppKit
 import UniformTypeIdentifiers
+import RamblrKit
 
 class RecordingCoordinator: ObservableObject {
     private var audioManager: AudioManager
@@ -11,6 +12,7 @@ class RecordingCoordinator: ObservableObject {
     private var notificationObserver: NSObjectProtocol?
     private var lastRecordingURL: URL? // Store the last recording URL for retry
     private var clipboardOnlyRecording = false
+    private var streamingSession: ChunkedTranscriptionSession? // Transcribes chunks while recording
     private var cancellables = Set<AnyCancellable>()
 
     @Published var transcriptionStatus: String = ""
@@ -140,6 +142,9 @@ class RecordingCoordinator: ObservableObject {
         guard audioManager.isRecording else { return }
         logInfo("RecordingCoordinator: Cancelling recording at user request")
         mediaPlaybackManager.resumeIfWePaused()
+        audioManager.chunkHandler = nil
+        streamingSession?.cancel()
+        streamingSession = nil
 
         // Hide waveform indicator
         WaveformIndicatorWindow.shared.hide()
@@ -175,6 +180,7 @@ class RecordingCoordinator: ObservableObject {
             // Pause media if enabled, then start recording
             mediaPlaybackManager.pauseIfPlaying { [weak self] in
                 guard let self = self else { return }
+                self.beginStreamingSession()
                 self.audioManager.startRecording()
 
                 // Show waveform indicator with output mode context
@@ -191,7 +197,10 @@ class RecordingCoordinator: ObservableObject {
         logInfo("RecordingCoordinator: Stopping recording...")
         mediaPlaybackManager.resumeIfWePaused()
 
-        if let recordingURL = audioManager.stopRecording() {
+        let stoppedURL = audioManager.stopRecording() // Emits the final chunk, if any
+        let session = takeStreamingSession()
+
+        if let recordingURL = stoppedURL {
             logInfo("RecordingCoordinator: Got recording URL: \(recordingURL)")
             self.lastRecordingURL = recordingURL // Save for potential retry
             logInfo("Recording completed: \(recordingURL.lastPathComponent)")
@@ -202,18 +211,26 @@ class RecordingCoordinator: ObservableObject {
                 if fileSize > 0 {
                     // Switch to transcribing mode
                     WaveformIndicatorWindow.shared.showTranscribing()
-                    transcribeAudio(recordingURL: recordingURL)
+                    if let session, session.chunkCount > 0 {
+                        transcribeStreamed(session: session, recordingURL: recordingURL)
+                    } else {
+                        session?.cancel()
+                        transcribeAudio(recordingURL: recordingURL)
+                    }
                 } else {
+                    session?.cancel()
                     logError("RecordingCoordinator: Recording file is empty")
                     WaveformIndicatorWindow.shared.hide()
                     showRecordingError()
                 }
             } else {
+                session?.cancel()
                 logError("RecordingCoordinator: Could not get recording file size")
                 WaveformIndicatorWindow.shared.hide()
                 showRecordingError()
             }
         } else {
+            session?.cancel()
             // Don't show an error - this is likely an intentionally short or silent recording
             logInfo("RecordingCoordinator: Recording was too short or silent")
             WaveformIndicatorWindow.shared.hide()
@@ -232,18 +249,7 @@ class RecordingCoordinator: ObservableObject {
             guard let self = self else { return }
             
             if let text = text {
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                logInfo("RecordingCoordinator: Received transcription of \(trimmed.count) characters")
-                self.recordingStore.markSucceeded(
-                    url: recordingURL,
-                    model: self.transcriptionManager.transcriptionModel,
-                    transcript: trimmed
-                )
-                // Hide indicator on successful transcription
-                WaveformIndicatorWindow.shared.hide()
-                // Read the latest clipboardOnly state (user may have toggled via indicator bubble)
-                let clipboardOnly = forceClipboardOnly ?? WaveformIndicatorWindow.shared.clipboardOnly
-                self.transcriptionManager.handleTranscriptionOutput(trimmed, clipboardOnly: clipboardOnly)
+                self.completeTranscription(text, recordingURL: recordingURL, forceClipboardOnly: forceClipboardOnly)
             } else {
                 logError("RecordingCoordinator: Transcription failed after retries")
                 self.recordingStore.markFailed(
@@ -255,6 +261,64 @@ class RecordingCoordinator: ObservableObject {
                 DispatchQueue.main.async {
                     self.showTranscriptionErrorWithOptions(recordingURL: recordingURL)
                 }
+            }
+        }
+    }
+
+    private func completeTranscription(_ text: String, recordingURL: URL, forceClipboardOnly: Bool?) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        logInfo("RecordingCoordinator: Received transcription of \(trimmed.count) characters")
+        recordingStore.markSucceeded(
+            url: recordingURL,
+            model: transcriptionManager.transcriptionModel,
+            transcript: trimmed
+        )
+        // Hide indicator on successful transcription
+        WaveformIndicatorWindow.shared.hide()
+        // Read the latest clipboardOnly state (user may have toggled via indicator bubble)
+        let clipboardOnly = forceClipboardOnly ?? WaveformIndicatorWindow.shared.clipboardOnly
+        transcriptionManager.handleTranscriptionOutput(trimmed, clipboardOnly: clipboardOnly)
+    }
+
+    // MARK: - Streaming transcription
+
+    /// Start a session that transcribes chunks of audio while the user is still talking.
+    private func beginStreamingSession() {
+        streamingSession?.cancel()
+        guard let session = transcriptionManager.makeStreamingSession() else {
+            streamingSession = nil
+            audioManager.chunkHandler = nil
+            return
+        }
+        streamingSession = session
+        audioManager.chunkHandler = { [weak session] chunkURL in
+            session?.submit(chunkURL: chunkURL)
+        }
+    }
+
+    private func takeStreamingSession() -> ChunkedTranscriptionSession? {
+        audioManager.chunkHandler = nil
+        defer { streamingSession = nil }
+        return streamingSession
+    }
+
+    /// Most of the audio has already been transcribed during recording, so only
+    /// the final chunk is still in flight. If anything went wrong, fall back to
+    /// transcribing the complete recording file, exactly as before.
+    private func transcribeStreamed(session: ChunkedTranscriptionSession, recordingURL: URL) {
+        logInfo("RecordingCoordinator: Finishing streamed transcription (\(session.chunkCount) chunks)")
+        recordingStore.markTranscribing(
+            url: recordingURL,
+            model: transcriptionManager.transcriptionModel
+        )
+        Task { @MainActor [weak self] in
+            let text = await session.finish()
+            guard let self else { return }
+            if let text, !text.isEmpty {
+                self.completeTranscription(text, recordingURL: recordingURL, forceClipboardOnly: nil)
+            } else {
+                logInfo("RecordingCoordinator: Streamed transcription failed or was empty; falling back to full recording")
+                self.transcribeAudio(recordingURL: recordingURL)
             }
         }
     }
