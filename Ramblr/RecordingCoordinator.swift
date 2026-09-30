@@ -265,7 +265,23 @@ class RecordingCoordinator: ObservableObject {
         }
     }
 
-    private func completeTranscription(_ text: String, recordingURL: URL, forceClipboardOnly: Bool?) {
+    /// Tidies the transcript (unless it was already cleaned chunk by chunk), then delivers it.
+    private func completeTranscription(
+        _ text: String,
+        recordingURL: URL,
+        forceClipboardOnly: Bool?,
+        alreadyCleaned: Bool = false
+    ) {
+        guard !alreadyCleaned else {
+            deliverTranscription(text, recordingURL: recordingURL, forceClipboardOnly: forceClipboardOnly)
+            return
+        }
+        transcriptionManager.cleanUp(text) { [weak self] cleaned in
+            self?.deliverTranscription(cleaned, recordingURL: recordingURL, forceClipboardOnly: forceClipboardOnly)
+        }
+    }
+
+    private func deliverTranscription(_ text: String, recordingURL: URL, forceClipboardOnly: Bool?) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         logInfo("RecordingCoordinator: Received transcription of \(trimmed.count) characters")
         recordingStore.markSucceeded(
@@ -315,7 +331,12 @@ class RecordingCoordinator: ObservableObject {
             let text = await session.finish()
             guard let self else { return }
             if let text, !text.isEmpty {
-                self.completeTranscription(text, recordingURL: recordingURL, forceClipboardOnly: nil)
+                self.completeTranscription(
+                    text,
+                    recordingURL: recordingURL,
+                    forceClipboardOnly: nil,
+                    alreadyCleaned: session.appliesCleanup
+                )
             } else {
                 logInfo("RecordingCoordinator: Streamed transcription failed or was empty; falling back to full recording")
                 self.transcribeAudio(recordingURL: recordingURL)

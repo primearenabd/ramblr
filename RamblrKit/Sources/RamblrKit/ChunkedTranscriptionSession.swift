@@ -14,16 +14,34 @@ public final class ChunkedTranscriptionSession: @unchecked Sendable {
     private let service: TranscriptionService
     private let model: TranscriptionModel
     private let apiKey: String
+    private let cleaner: TranscriptCleaner?
+    private let vocabulary: [String]
+    private let whisperPrompt: String?
 
     private let lock = NSLock()
     private var tasks: [Task<String, Error>] = []
     private var isCancelled = false
 
-    public init(service: TranscriptionService, model: TranscriptionModel, apiKey: String) {
+    /// - Parameters:
+    ///   - cleaner: If set, each chunk's text is tidied as soon as it is transcribed.
+    ///   - vocabulary: Terms passed to Whisper (as a hint) and to the cleaner.
+    public init(
+        service: TranscriptionService,
+        model: TranscriptionModel,
+        apiKey: String,
+        cleaner: TranscriptCleaner? = nil,
+        vocabulary: [String] = []
+    ) {
         self.service = service
         self.model = model
         self.apiKey = apiKey
+        self.cleaner = cleaner
+        self.vocabulary = vocabulary
+        self.whisperPrompt = vocabulary.isEmpty ? nil : vocabulary.joined(separator: ", ")
     }
+
+    /// Whether the text returned by ``finish()`` has already been cleaned.
+    public var appliesCleanup: Bool { cleaner != nil }
 
     /// Number of chunks submitted so far.
     public var chunkCount: Int {
@@ -46,9 +64,23 @@ public final class ChunkedTranscriptionSession: @unchecked Sendable {
         let service = self.service
         let model = self.model
         let apiKey = self.apiKey
+        let cleaner = self.cleaner
+        let vocabulary = self.vocabulary
+        let prompt = self.whisperPrompt
+        let previous = tasks.last
         tasks.append(Task<String, Error> {
             defer { try? FileManager.default.removeItem(at: chunkURL) }
-            return try await service.transcribeWithRetry(audioURL: chunkURL, model: model, apiKey: apiKey)
+            let raw = try await service.transcribeWithRetry(
+                audioURL: chunkURL, model: model, apiKey: apiKey, prompt: prompt
+            )
+            guard let cleaner else { return raw }
+            // Give the cleaner the end of the previous (already cleaned) chunk for context.
+            let previousText = try? await previous?.value
+            return await cleaner.clean(
+                raw,
+                precedingText: previousText.map { String($0.suffix(300)) },
+                vocabulary: vocabulary
+            )
         })
     }
 

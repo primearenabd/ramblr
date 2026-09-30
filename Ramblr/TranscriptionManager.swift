@@ -132,7 +132,73 @@ class TranscriptionManager: ObservableObject {
         let service = TranscriptionService(requestTimeout: requestTimeout, maxRetries: maxRetries) { message in
             logInfo(message)
         }
-        return ChunkedTranscriptionSession(service: service, model: model, apiKey: key)
+        return ChunkedTranscriptionSession(
+            service: service,
+            model: model,
+            apiKey: key,
+            cleaner: makeCleaner(),
+            vocabulary: vocabulary
+        )
+    }
+
+    // MARK: - Transcript cleanup
+
+    static let cleanupEnabledKey = "TranscriptCleanupEnabled"
+    static let customVocabularyKey = "CustomVocabulary"
+
+    /// Tidy transcripts with an AI model (repeats, punctuation, paragraphs). On by default.
+    var cleanupEnabled: Bool {
+        get { (UserDefaults.standard.object(forKey: Self.cleanupEnabledKey) as? Bool) ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: Self.cleanupEnabledKey) }
+    }
+
+    /// The user's own words (comma or newline separated), stored as one string.
+    var customVocabularyText: String {
+        get { UserDefaults.standard.string(forKey: Self.customVocabularyKey) ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: Self.customVocabularyKey) }
+    }
+
+    /// Built-in terms plus the user's own, without duplicates.
+    var vocabulary: [String] {
+        let custom = customVocabularyText
+            .components(separatedBy: CharacterSet(charactersIn: ",\n"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        var seen = Set<String>()
+        return (TranscriptCleaner.defaultVocabulary + custom).filter { seen.insert($0.lowercased()).inserted }
+    }
+
+    /// Vocabulary as a Whisper hint, e.g. "Ramblr, Groq, OpenAI".
+    private var vocabularyPrompt: String? {
+        let terms = vocabulary
+        return terms.isEmpty ? nil : terms.joined(separator: ", ")
+    }
+
+    /// A cleaner for the selected provider, or nil if cleanup is off or there is no key.
+    func makeCleaner() -> TranscriptCleaner? {
+        guard cleanupEnabled else { return nil }
+        let model = TranscriptionModel(identifier: transcriptionModel)
+        let key = (model.provider == .groq ? groqApiKey : apiKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !key.isEmpty else { return nil }
+        let override = UserDefaults.standard.string(forKey: "TranscriptCleanupModel")
+        return TranscriptCleaner(provider: model.provider, apiKey: key, model: override) { message in
+            logInfo(message)
+        }
+    }
+
+    /// Clean a finished transcript. Calls `completion` on the main queue, with the
+    /// original text if cleanup is off or fails.
+    func cleanUp(_ text: String, completion: @escaping (String) -> Void) {
+        guard let cleaner = makeCleaner() else {
+            DispatchQueue.main.async { completion(text) }
+            return
+        }
+        let vocabulary = self.vocabulary
+        Task {
+            let cleaned = await cleaner.clean(text, vocabulary: vocabulary)
+            DispatchQueue.main.async { completion(cleaned) }
+        }
     }
     
     func checkAccessibilityPermission(shouldPrompt: Bool = false) {
@@ -429,7 +495,10 @@ class TranscriptionManager: ObservableObject {
         Task {
             let result: Result<String, TranscriptionError>
             do {
-                let text = try await service.transcribe(audioURL: audioURL, model: model, apiKey: authKey)
+                let text = try await service.transcribe(
+                    audioURL: audioURL, model: model, apiKey: authKey,
+                    prompt: vocabularyPrompt
+                )
                 result = .success(text)
             } catch let error as TranscriptionError {
                 result = .failure(error)

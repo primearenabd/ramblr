@@ -14,6 +14,7 @@ struct MenuBarView: View {
     @State private var apiKey: String = UserDefaults.standard.string(forKey: "OpenAIAPIKey") ?? ""
     @State private var groqApiKey: String = UserDefaults.standard.string(forKey: "GroqAPIKey") ?? ""
     @State private var autoPasteEnabled: Bool = (UserDefaults.standard.object(forKey: "AutoPasteEnabled") as? Bool) ?? false
+    @State private var cleanupEnabled: Bool = (UserDefaults.standard.object(forKey: "TranscriptCleanupEnabled") as? Bool) ?? true
     @State private var showHotkeyChangePopover: Bool = false
     @State private var showPauseHotkeyChangePopover: Bool = false
     @State private var showCancelHotkeyChangePopover: Bool = false
@@ -116,6 +117,28 @@ struct MenuBarView: View {
                         transcriptionManager.checkAccessibilityPermission(shouldPrompt: true)
                     }
                 }
+
+                Divider().padding(.top, 6)
+
+                Toggle(isOn: $cleanupEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Clean up transcript (AI)")
+                        Text("Fixes repeats & punctuation, adds paragraphs")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .onChange(of: cleanupEnabled) { _, newValue in
+                    transcriptionManager.cleanupEnabled = newValue
+                    logInfo("TranscriptCleanupEnabled set to \(newValue)")
+                }
+
+                Button(action: { editCustomWords() }) {
+                    Text("Custom words…").underline()
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundColor(.secondary)
 
                 Divider().padding(.top, 6)
 
@@ -604,6 +627,27 @@ struct MenuBarView: View {
             recordingStore.cleanupExpiredRecordings()
         }
         // Detached panel used instead of sheets for key entry (prevents menu dismissal)
+    }
+
+    /// Let the user list names/terms Whisper often gets wrong (comma-separated).
+    private func editCustomWords() {
+        let alert = NSAlert()
+        alert.messageText = "Custom Words"
+        alert.informativeText = "Names and terms Ramblr should spell correctly, separated by commas. Ramblr, Groq, OpenAI, Xcode and similar are already built in."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
+        field.stringValue = transcriptionManager.customVocabularyText
+        field.placeholderString = "e.g. Zerivo, Supabase, Vercel"
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            transcriptionManager.customVocabularyText = field.stringValue
+            logInfo("Custom words updated")
+        }
     }
 
     private func openModelSetup() {

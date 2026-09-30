@@ -32,12 +32,13 @@ public struct TranscriptionService: Sendable {
     public func transcribeWithRetry(
         audioURL: URL,
         model: TranscriptionModel,
-        apiKey: String
+        apiKey: String,
+        prompt: String? = nil
     ) async throws -> String {
         var attempt = 0
         while true {
             do {
-                return try await transcribe(audioURL: audioURL, model: model, apiKey: apiKey)
+                return try await transcribe(audioURL: audioURL, model: model, apiKey: apiKey, prompt: prompt)
             } catch let error as TranscriptionError {
                 attempt += 1
                 guard error.isRetriable, attempt <= maxRetries else { throw error }
@@ -50,10 +51,13 @@ public struct TranscriptionService: Sendable {
     }
 
     /// Perform a single transcription request.
+    /// - Parameter prompt: Optional hint text (e.g. a vocabulary list) that steers
+    ///   Whisper toward the right spellings of names and terms.
     public func transcribe(
         audioURL: URL,
         model: TranscriptionModel,
-        apiKey: String
+        apiKey: String,
+        prompt: String? = nil
     ) async throws -> String {
         let authKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !authKey.isEmpty else {
@@ -88,7 +92,8 @@ public struct TranscriptionService: Sendable {
             audioData: audioData,
             filename: filename,
             mimeType: mimeType,
-            model: modelForAPI
+            model: modelForAPI,
+            prompt: prompt
         )
         log("Audio file size being sent to API: \(audioData.count) bytes")
 
@@ -139,8 +144,25 @@ public struct TranscriptionService: Sendable {
             throw TranscriptionError.decodingError
         }
 
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let prompt, Self.isPromptEcho(trimmed, prompt: prompt) {
+            // On silent audio Whisper can parrot its hint back; that is not speech.
+            log("Transcription looked like an echo of the vocabulary hint; treating as empty")
+            return ""
+        }
         log("Transcription successful, received text of length: \(text.count)")
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed
+    }
+
+    /// True if `text` is just (part of) the hint we sent, ignoring case and punctuation.
+    static func isPromptEcho(_ text: String, prompt: String) -> Bool {
+        func normalise(_ s: String) -> String {
+            s.lowercased().filter { $0.isLetter || $0.isNumber || $0 == " " }
+                .split(separator: " ").joined(separator: " ")
+        }
+        let t = normalise(text)
+        guard !t.isEmpty else { return false }
+        return normalise(prompt).contains(t)
     }
 
     // MARK: - Helpers
@@ -150,7 +172,8 @@ public struct TranscriptionService: Sendable {
         audioData: Data,
         filename: String,
         mimeType: String,
-        model: String
+        model: String,
+        prompt: String? = nil
     ) -> Data {
         var data = Data()
         func append(_ string: String) { data.append(string.data(using: .utf8)!) }
@@ -169,6 +192,12 @@ public struct TranscriptionService: Sendable {
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"temperature\"\r\n\r\n")
         append("0.0\r\n")
+
+        if let prompt, !prompt.isEmpty {
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n")
+            append("\(prompt)\r\n")
+        }
 
         append("--\(boundary)--\r\n")
         return data
