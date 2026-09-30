@@ -67,6 +67,7 @@ public struct TranscriptCleaner: Sendable {
 
         for model in models {
             if Task.isCancelled { return original }
+            let requestStart = Date()
             do {
                 let reply = try await request(
                     model: model,
@@ -75,6 +76,7 @@ public struct TranscriptCleaner: Sendable {
                     vocabulary: vocabulary
                 )
                 let cleaned = Self.stripWrapper(reply)
+                log("Cleanup: \(model) answered in \(Int(Date().timeIntervalSince(requestStart) * 1000))ms")
                 if Self.isAcceptable(original: original, cleaned: cleaned) {
                     return cleaned
                 }
@@ -90,6 +92,28 @@ public struct TranscriptCleaner: Sendable {
             }
         }
         return original
+    }
+
+    /// Like ``clean(_:precedingText:vocabulary:)`` but never waits longer than
+    /// `timeBudget`. If the AI answer isn't ready in time, returns an instant
+    /// local tidy of the text instead, so cleanup can't slow down the paste.
+    public func clean(
+        _ text: String,
+        precedingText: String? = nil,
+        vocabulary: [String] = TranscriptCleaner.defaultVocabulary,
+        timeBudget: TimeInterval
+    ) async -> String {
+        let started = Date()
+        let cleaned = await Deadline.run(seconds: timeBudget) {
+            await self.clean(text, precedingText: precedingText, vocabulary: vocabulary)
+        }
+        let ms = Int(Date().timeIntervalSince(started) * 1000)
+        if let cleaned {
+            log("Cleanup: finished in \(ms)ms (limit \(Int(timeBudget * 1000))ms)")
+            return cleaned
+        }
+        log("Cleanup: not ready within \(ms)ms; using quick local tidy instead")
+        return LocalTextTidy.tidy(text)
     }
 
     // MARK: - Request

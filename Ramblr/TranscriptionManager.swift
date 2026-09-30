@@ -137,7 +137,8 @@ class TranscriptionManager: ObservableObject {
             model: model,
             apiKey: key,
             cleaner: makeCleaner(),
-            vocabulary: vocabulary
+            vocabulary: vocabulary,
+            cleanupBudget: cleanupBudget
         )
     }
 
@@ -150,6 +151,14 @@ class TranscriptionManager: ObservableObject {
     var cleanupEnabled: Bool {
         get { (UserDefaults.standard.object(forKey: Self.cleanupEnabledKey) as? Bool) ?? true }
         set { UserDefaults.standard.set(newValue, forKey: Self.cleanupEnabledKey) }
+    }
+
+    /// The longest (seconds) cleanup may delay the result after you stop talking.
+    /// Anything not ready by then is replaced by an instant local tidy.
+    /// Tune with: defaults write <bundle id> CleanupBudgetMs -int 350
+    var cleanupBudget: TimeInterval {
+        let ms = UserDefaults.standard.object(forKey: "CleanupBudgetMs") as? Int ?? 350
+        return TimeInterval(max(0, ms)) / 1000
     }
 
     /// The user's own words (comma or newline separated), stored as one string.
@@ -195,8 +204,9 @@ class TranscriptionManager: ObservableObject {
             return
         }
         let vocabulary = self.vocabulary
+        let budget = cleanupBudget
         Task {
-            let cleaned = await cleaner.clean(text, vocabulary: vocabulary)
+            let cleaned = await cleaner.clean(text, vocabulary: vocabulary, timeBudget: budget)
             DispatchQueue.main.async { completion(cleaned) }
         }
     }
